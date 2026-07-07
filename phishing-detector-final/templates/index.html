@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phishing Email & Link Detector</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>🛡️ Phishing Email &amp; Link Detector</h1>
+    <p class="subtitle">Rule-based analysis · headers · keywords · URL forensics</p>
+</header>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="showTab('email', this)">📧 Analyze Email</button>
+    <button class="tab-btn" onclick="showTab('link', this)">🔗 Analyze Link</button>
+    <button class="tab-btn" onclick="showTab('history', this)">🕘 History</button>
+    <button class="tab-btn" onclick="showTab('about', this)">📖 About</button>
+</div>
+
+<main>
+
+    <!-- ── EMAIL TAB ── -->
+    <section id="email-tab" class="tab-panel active">
+        <textarea id="email-input" rows="12"
+            placeholder="Paste full email content here (headers + body work best, e.g. From:, Reply-To:, Subject:, then body text)..."></textarea>
+
+        <div class="email-actions">
+            <button class="scan-btn" onclick="analyzeEmail()">Scan Email</button>
+            <span class="divider">or</span>
+            <label class="upload-btn" for="eml-upload" title="Upload a saved .eml file">
+                📎 Upload .eml File
+            </label>
+            <input type="file" id="eml-upload" accept=".eml" style="display:none"
+                   onchange="analyzeEml(this)">
+            <span id="eml-filename" class="eml-filename"></span>
+        </div>
+    </section>
+
+    <!-- ── LINK TAB ── -->
+    <section id="link-tab" class="tab-panel">
+        <input id="link-input" type="text" placeholder="Paste a URL, e.g. https://amaz0n-secure.com/login">
+        <button class="scan-btn" onclick="analyzeLink()">Scan Link</button>
+    </section>
+
+    <!-- ── HISTORY TAB ── -->
+    <section id="history-tab" class="tab-panel">
+        <button class="scan-btn" onclick="loadHistory()">Refresh History</button>
+        <div id="history-list"></div>
+    </section>
+
+    <!-- ── ABOUT TAB ── -->
+    <section id="about-tab" class="tab-panel">
+        <div class="about-hero">
+            <h2>What is this project?</h2>
+            <p>
+                <strong>Phishing Email &amp; Link Detector</strong> is a rule-based cybersecurity tool
+                that helps you identify phishing emails and malicious URLs without relying on any
+                machine-learning model. Every decision is fully transparent — you can see exactly
+                which rules fired and why.
+            </p>
+        </div>
+
+        <div class="about-grid">
+
+            <div class="about-card">
+                <div class="about-icon">📧</div>
+                <h3>Email Analysis</h3>
+                <p>Paste raw email content or upload a <code>.eml</code> file. The engine checks
+                sender domains, header spoofing, urgency keywords, sensitive data requests,
+                HTML-only structure, and dangerous attachments across <strong>8 rules</strong>.</p>
+            </div>
+
+            <div class="about-card">
+                <div class="about-icon">🔗</div>
+                <h3>Link / URL Analysis</h3>
+                <p>Paste any URL to inspect it for typosquatting, homograph attacks, suspicious TLDs,
+                IP-based hosts, URL shorteners, redirect chains, and more across
+                <strong>13 rules</strong>.</p>
+            </div>
+
+            <div class="about-card">
+                <div class="about-icon">🧮</div>
+                <h3>Confidence Scoring</h3>
+                <p>Every scan returns a <strong>raw score</strong> (points from triggered rules),
+                a <strong>max possible score</strong>, and a <strong>confidence %</strong> — how
+                certain the engine is in its verdict. Higher score = higher confidence of a threat.</p>
+            </div>
+
+            <div class="about-card">
+                <div class="about-icon">🌐</div>
+                <h3>API Threat Intelligence</h3>
+                <p>When API keys are configured, URLs are cross-checked against
+                <strong>PhishTank</strong> (community-verified phishing database) and
+                <strong>VirusTotal</strong> (70+ antivirus engines). Hits add extra weight to the score.</p>
+            </div>
+
+            <div class="about-card">
+                <div class="about-icon">🗄️</div>
+                <h3>Scan History</h3>
+                <p>Every analysis is automatically logged to a local <strong>SQLite database</strong>
+                with the mode, verdict, score, and timestamp — giving you a full audit trail of
+                past scans.</p>
+            </div>
+
+            <div class="about-card">
+                <div class="about-icon">🔍</div>
+                <h3>Rule Transparency</h3>
+                <p>Unlike black-box ML models, every verdict comes with a <strong>full breakdown</strong>
+                of which rules triggered, their severity level, and exactly what was found —
+                so you always know why an email was flagged.</p>
+            </div>
+
+        </div>
+
+        <div class="about-stack">
+            <h3>Technology Stack</h3>
+            <div class="stack-pills">
+                <span>Python 3</span>
+                <span>Flask</span>
+                <span>NLTK</span>
+                <span>Regex / NLP</span>
+                <span>SQLite</span>
+                <span>VirusTotal API</span>
+                <span>PhishTank API</span>
+                <span>HTML / CSS / JS</span>
+            </div>
+            <p class="stack-note">
+                Pattern references: Anti-Phishing Working Group (APWG · apwg.org) and
+                PhishTank (phishtank.org) community database.
+            </p>
+        </div>
+
+        <div class="about-howto">
+            <h3>How to run</h3>
+            <pre><code>pip install -r requirements.txt
+python app.py
+# → open http://127.0.0.1:5000</code></pre>
+            <p>To enable live API checks, add your free keys to <code>config.py</code>:</p>
+            <pre><code>VIRUSTOTAL_API_KEY = "..."   # virustotal.com/gui/join-us
+PHISHTANK_API_KEY  = "..."   # phishtank.com/api_register.php</code></pre>
+        </div>
+    </section>
+
+    <div id="result"></div>
+</main>
+
+<script>
+function showTab(tab, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tab + '-tab').classList.add('active');
+    btn.classList.add('active');
+    document.getElementById('result').innerHTML = '';
+}
+
+/* ── Shared render helpers ── */
+function renderResult(data) {
+    document.getElementById('result').innerHTML = renderResultHtml(data);
+}
+
+function confidenceBadge(data) {
+    if (data.confidence == null) return '';
+    const pct = data.confidence;
+    const label = data.classification;
+    const colorClass = data.color;   // danger / warning / success
+    return `<span class="confidence-badge ${colorClass}">${pct}% confidence ${label}</span>`;
+}
+
+function renderResultHtml(data) {
+    if (data.error) return `<div class="result-box danger"><strong>Error:</strong> ${data.error}</div>`;
+
+    const scoreBar = `
+        <div class="score-bar-wrap">
+            <div class="score-bar-track">
+                <div class="score-bar-fill ${data.color}"
+                     style="width:${Math.round((data.score / data.max_score) * 100)}%"></div>
+            </div>
+        </div>`;
+
+    let rulesHtml = (data.triggered_rules || []).map(r => `
+        <div class="rule-row severity-${r.severity}">
+            <span class="rule-name">${r.rule}</span>
+            <span class="rule-points">+${r.points} pts</span>
+            <div class="rule-detail">${r.detail}</div>
+        </div>
+    `).join('') || '<p class="no-rules">✅ No suspicious signals detected.</p>';
+
+    const urlSection = (data.urls_found && data.urls_found.length)
+        ? `<div class="urls-found">
+               <strong>URLs found (${data.urls_found.length}):</strong>
+               ${data.urls_found.map(u => `<div class="url-chip">${u}</div>`).join('')}
+           </div>`
+        : '';
+
+    return `
+        <div class="result-box ${data.color}">
+            <div class="result-header">
+                <span class="emoji">${data.emoji}</span>
+                <span class="classification">${data.classification}</span>
+                ${confidenceBadge(data)}
+                <span class="score">Score: ${data.score} / ${data.max_score}</span>
+            </div>
+            ${scoreBar}
+            <div class="rules-list">${rulesHtml}</div>
+            ${urlSection}
+        </div>
+    `;
+}
+
+/* ── Email analysis ── */
+async function analyzeEmail() {
+    const text = document.getElementById('email-input').value.trim();
+    if (!text) { alert('Please paste some email content first.'); return; }
+    document.getElementById('result').innerHTML = '<p class="loading">🔍 Scanning email…</p>';
+    try {
+        const res = await fetch('/analyze/email', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email_text: text})
+        });
+        renderResult(await res.json());
+    } catch(e) {
+        document.getElementById('result').innerHTML = `<div class="result-box danger">Request failed: ${e.message}</div>`;
+    }
+}
+
+/* ── EML upload ── */
+async function analyzeEml(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('eml-filename').textContent = file.name;
+    document.getElementById('result').innerHTML = `<p class="loading">📎 Parsing ${file.name}…</p>`;
+    const fd = new FormData();
+    fd.append('eml_file', file);
+    try {
+        const res = await fetch('/analyze/eml', { method: 'POST', body: fd });
+        const data = await res.json();
+        const banner = data.filename
+            ? `<p class="eml-info">📎 Analysed: <strong>${data.filename}</strong></p>`
+            : '';
+        document.getElementById('result').innerHTML = banner + renderResultHtml(data);
+    } catch(e) {
+        document.getElementById('result').innerHTML = `<div class="result-box danger">Upload failed: ${e.message}</div>`;
+    }
+    input.value = '';
+}
+
+/* ── Link analysis ── */
+async function analyzeLink() {
+    const url = document.getElementById('link-input').value.trim();
+    if (!url) { alert('Please enter a URL first.'); return; }
+    document.getElementById('result').innerHTML = '<p class="loading">🔍 Scanning link…</p>';
+    try {
+        const res = await fetch('/analyze/link', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url})
+        });
+        renderResult(await res.json());
+    } catch(e) {
+        document.getElementById('result').innerHTML = `<div class="result-box danger">Request failed: ${e.message}</div>`;
+    }
+}
+
+/* ── History ── */
+async function loadHistory() {
+    const res = await fetch('/history');
+    const rows = await res.json();
+    document.getElementById('history-list').innerHTML = rows.length
+        ? rows.map(r => `
+            <div class="history-row ${r.classification.toLowerCase()}">
+                <span class="h-mode">${r.mode}</span>
+                <span class="h-input" title="${r.input}">${r.input}</span>
+                <span class="h-score">${r.score} pts</span>
+                <span class="h-class">${r.classification}</span>
+                <span class="h-time">${r.timestamp.split('.')[0]}</span>
+            </div>`).join('')
+        : '<p style="color:#777;margin-top:16px">No scans yet.</p>';
+}
+</script>
+
+</body>
+</html>
